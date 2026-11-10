@@ -1,0 +1,8 @@
+*.tar.gz
+*.tar.xz
+*.so.xz
+*.log
+.drive_token.json
+drive_auth.json
+__pycache__/
+.DS_Store
