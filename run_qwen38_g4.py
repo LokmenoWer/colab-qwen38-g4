@@ -485,7 +485,8 @@ def run_remote_watchdog_loop(duration_sec: int):
                 "--format=csv,noheader,nounits 2>/dev/null"
             ).strip()
             gpu_summary = f" | GPU: {gpu_info}" if gpu_info else ""
-            log(f"[keepalive] SGLang=OK | Tunnel={tunnel_status}{gpu_summary}")
+            sglang_status = "OK" if sglang_failures == 0 else f"UNHEALTHY({sglang_failures})"
+            log(f"[keepalive] SGLang={sglang_status} | Tunnel={tunnel_status}{gpu_summary}")
             last_heartbeat = now
 
         remaining = duration_sec - (time.time() - t_start)
@@ -672,9 +673,14 @@ def run_local_keepalive_daemon(
             f"-s {shlex.quote(session_name)} -i {shlex.quote(str(identity))}"
         )
         while not stop_event.is_set():
-            # Refresh token before connecting SSH WebSocket
-            if check_colab_session_state(session_name) == "absent":
+            # Refresh token before connecting SSH WebSocket. Only connect when the session is
+            # confirmed active: `colab ssh --proxy-mode -s NAME` auto-creates a missing session.
+            state = check_colab_session_state(session_name)
+            if state == "absent":
                 break
+            if state != "active":
+                stop_event.wait(5.0)
+                continue
             ssh_cmd = [
                 "ssh",
                 "-N",
